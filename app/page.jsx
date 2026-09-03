@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import "./globals.css";
 
 const SUPABASE_URL = "https://aettmoeltpewwidaihud.supabase.co";
-const SUPABASE_KEY = "YOUR_SUPABASE_PUBLISHABLE_KEY_HERE"; // මෙතනට ඔයාගේ publishable key එක දාන්න
+const SUPABASE_KEY = "sb_publishable_wri7Paddknj-LJ7f9i5ysw_WFauaM7-"; // මෙතනට ඔයාගේ publishable key එක දාන්න
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 export default function Home() {
