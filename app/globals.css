@@ -1,0 +1,95 @@
+:root {
+  --primary-red: #ff2a4b;
+  --bg-dark: #08080b;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+body {
+  background-color: var(--bg-dark);
+  color: #fff;
+  min-height: 100vh;
+}
+
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.brand-title {
+  font-weight: 800;
+  font-size: 1.2rem;
+}
+
+.brand-title span {
+  color: var(--primary-red);
+}
+
+.brand-sub {
+  font-size: 0.65rem;
+  color: #888;
+  letter-spacing: 1px;
+}
+
+.menu-btn {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 1.2rem;
+}
+
+.hero-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 1rem;
+  text-align: center;
+}
+
+.hero-title {
+  font-size: 1.8rem;
+  margin-top: 1rem;
+}
+
+.hero-title span {
+  color: var(--primary-red);
+}
+
+.hero-tagline {
+  font-size: 0.8rem;
+  color: var(--primary-red);
+  letter-spacing: 2px;
+  margin: 0.3rem 0;
+}
+
+.hero-desc {
+  font-size: 0.9rem;
+  color: #aaa;
+  max-width: 400px;
+  margin-bottom: 1.5rem;
+}
+
+.info-list {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 1rem;
+}
+
+.info-card {
+  background: #121217;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
