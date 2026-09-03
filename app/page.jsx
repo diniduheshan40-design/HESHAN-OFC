@@ -13,9 +13,6 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const OWNER_PHONE = "0719845166";
 const OWNER_PASS = "Heshan2007#";
 
-// AI Assistant OpenRouter Key
-const OPENROUTER_API_KEY = "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";
-
 export default function Home() {
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -143,7 +140,7 @@ export default function Home() {
     setReplyTargetUser(name);
   };
 
-  // AI Assistant Call
+  // Safe AI Assistant Call (Backend API)
   const handleSendChatMessage = async (e) => {
     e.preventDefault();
     if (!chatInput.trim() || chatLoading) return;
@@ -154,39 +151,15 @@ export default function Home() {
     setChatInput("");
     setChatLoading(true);
 
-    const systemPrompt = {
-      role: "system",
-      content: `You are the official AI Assistant of 'HESHAN OFC' (Dinidu Heshan samaranayaka).
-Heshan's Personal Details:
-- Name: Dinidu Heshan samaranayaka
-- Location / Town: Embilipitiya
-- Age: 18
-- Role: Web Developer & AI Creator
-- Contact WhatsApp: 0719845166 (https://wa.me/94719845166)
-- Photo / Image: If the user asks for Heshan's photo/picture/image, give them this exact image URL: https://files.catbox.moe/0fmhj2.jpeg
-
-Instructions:
-- When asked about Heshan, answer ONLY using the details above.
-- When asked general questions, reply politely and casually in friendly Sinhala or English. Keep answers short and concise.`
-    };
-
     try {
-      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      const res = await fetch("/api/chat", {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://hesh-ofc.vercel.app",
-          "X-Title": "Heshan OFC Assistant"
-        },
-        body: JSON.stringify({
-          model: "meta-llama/llama-3.1-8b-instruct:free",
-          messages: [systemPrompt, ...newChat]
-        })
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: newChat })
       });
 
       const data = await res.json();
-      const reply = data.choices?.[0]?.message?.content || "මට ඒක තේරුම් ගන්න අපහසු වුණා, ආයේ අහන්න!";
+      const reply = data.reply || "මට ඒක තේරුම් ගන්න අපහසු වුණා, ආයේ අහන්න!";
       setChatMessages([...newChat, { role: "assistant", content: reply }]);
     } catch {
       setChatMessages([...newChat, { role: "assistant", content: "Connection error. කරුණාකර නැවත උත්සාහ කරන්න!" }]);
@@ -260,7 +233,7 @@ Instructions:
               <i className="fa-solid fa-chevron-right chevron"></i>
             </a>
 
-            {/* Owner Login / Logout Button in Menu Drawer */}
+            {/* Owner Login / Logout Button */}
             <div style={{ marginTop: "0.6rem", borderTop: "1px solid var(--border-color)", paddingTop: "0.8rem" }}>
               {isOwnerLoggedIn ? (
                 <button
@@ -329,7 +302,7 @@ Instructions:
         </div>
       )}
 
-      {/* Hero / Home Section */}
+      {/* Hero Section */}
       <main className="hero-section" id="home">
         <div className="logo-frame">
           <div className="ring-glow"></div>
@@ -514,7 +487,7 @@ Instructions:
         </div>
       )}
 
-      {/* Community Comments Modal Drawer */}
+      {/* Community Comments Modal */}
       {modalOpen && (
         <div className="comment-modal-overlay" onClick={() => setModalOpen(false)}>
           <div className="comment-box" onClick={(e) => e.stopPropagation()}>
@@ -538,7 +511,6 @@ Instructions:
                   <div key={item.id} className="comment-card">
                     <div className="comment-top">
                       <span className="comment-user" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        {/* Owner Badge Before Name */}
                         {item.is_owner ? (
                           <span style={{
                             background: "linear-gradient(135deg, #e61937, #990c21)",
@@ -573,7 +545,7 @@ Instructions:
                         <i className="fa-solid fa-reply"></i> Reply
                       </button>
 
-                      {/* Delete Button (Owner Exclusive) */}
+                      {/* Delete Button (Owner Only) */}
                       {isOwnerLoggedIn && (
                         <button
                           onClick={() => handleDeleteComment(item.id)}
