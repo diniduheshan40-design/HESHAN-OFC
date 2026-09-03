@@ -4,44 +4,43 @@ import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 import "./globals.css";
 
-// Database Configuration
 const SUPABASE_URL = "https://aettmoeltpewwidaihud.supabase.co";
-const SUPABASE_KEY = "sb_publishable_wri7Paddknj-LJ7f9i5ysw_WFauaM7-"; // මෙතනට ඔයා copy කරපු Publishable Key එක දාන්න
+const SUPABASE_KEY = "YOUR_SUPABASE_PUBLISHABLE_KEY_HERE"; // මෙතනට ඔයාගේ publishable key එක දාන්න
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-// ඔබේ Owner Mail එක (මේ mail එකෙන් ආවම Owner විදිහට හඳුනගනී)
-const OWNER_EMAIL = "damiyamalinda@gmail.com";
 
 export default function Home() {
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [user, setUser] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
-  // Comments State
+  // Database State
   const [comments, setComments] = useState([]);
-  const [name, setName] = useState("");
-  const [commentText, setCommentText] = useState("");
-  const [replyTo, setReplyTo] = useState(null);
+  const [authorInput, setAuthorInput] = useState("");
+  const [messageInput, setMessageInput] = useState("");
+  const [activeReplyId, setActiveReplyId] = useState(null);
+  const [replyTargetUser, setReplyTargetUser] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 500);
 
-    // Auth state check
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-    });
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-
-    // Load comments
     fetchComments();
+
+    // Realtime changes listener
+    const channel = supabase
+      .channel("public_comments_realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "comments" },
+        () => {
+          fetchComments();
+        }
+      )
+      .subscribe();
 
     return () => {
       clearTimeout(timer);
-      authListener.subscription.unsubscribe();
+      supabase.removeChannel(channel);
     };
   }, []);
 
@@ -53,45 +52,34 @@ export default function Home() {
     if (!error && data) setComments(data);
   };
 
-  const handleGoogleLogin = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: window.location.origin
-      }
-    });
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-  };
-
-  const isOwner = user?.email === OWNER_EMAIL;
-
-  const handleAddComment = async (e) => {
+  const handleCommentSubmit = async (e) => {
     e.preventDefault();
-    if (!commentText.trim()) return;
+    if (!authorInput.trim() || !messageInput.trim()) return;
 
-    const authorName = isOwner ? "Heshan (Owner)" : name.trim() || "Visitor";
     setSubmitting(true);
+    const isOwner = authorInput.trim().toLowerCase().includes("heshan");
 
     const { error } = await supabase.from("comments").insert([
       {
-        author: authorName,
-        text: commentText.trim(),
+        author: authorInput.trim(),
+        text: messageInput.trim(),
         is_owner: isOwner,
-        parent_id: replyTo
-      }
+        parent_id: activeReplyId,
+      },
     ]);
 
     setSubmitting(false);
     if (!error) {
-      setCommentText("");
-      setReplyTo(null);
-      if (!isOwner) setName("");
+      setMessageInput("");
+      setActiveReplyId(null);
+      setReplyTargetUser("");
       fetchComments();
     }
+  };
+
+  const startReply = (id, name) => {
+    setActiveReplyId(id);
+    setReplyTargetUser(name);
   };
 
   const parentComments = comments.filter((c) => !c.parent_id);
@@ -99,54 +87,89 @@ export default function Home() {
 
   return (
     <>
+      {/* Preloader */}
       {loading && (
         <div id="preloader">
           <div className="loader-ring"></div>
         </div>
       )}
 
+      {/* Navbar */}
       <nav className="navbar">
         <div className="brand-box">
-          <div className="brand-title">HESHAN <span>OFC</span></div>
+          <div className="brand-title">
+            HESHAN <span>OFC</span>
+          </div>
           <div className="brand-sub">DINIDU HESHAN</div>
         </div>
-        <button className="menu-btn" onClick={() => setMenuOpen(!menuOpen)}>
+
+        <button
+          className="menu-btn"
+          onClick={() => setMenuOpen(!menuOpen)}
+          aria-label="Toggle Navigation"
+        >
           <i className={`fa-solid ${menuOpen ? "fa-xmark" : "fa-bars"}`}></i>
         </button>
       </nav>
 
+      {/* Dropdown Menu Drawer */}
       {menuOpen && (
         <>
           <div className="menu-overlay" onClick={() => setMenuOpen(false)}></div>
           <div className="menu-container">
             <a href="#home" className="menu-item active" onClick={() => setMenuOpen(false)}>
-              <div className="menu-item-left"><i className="fa-solid fa-house"></i> Home</div>
+              <div className="menu-item-left">
+                <i className="fa-solid fa-house"></i> Home
+              </div>
+              <i className="fa-solid fa-chevron-right chevron"></i>
             </a>
-            <a href="#comments" className="menu-item" onClick={() => setMenuOpen(false)}>
-              <div className="menu-item-left"><i className="fa-solid fa-comments"></i> Guestbook / Comments</div>
+            <a href="#skills" className="menu-item" onClick={() => setMenuOpen(false)}>
+              <div className="menu-item-left">
+                <i className="fa-solid fa-code"></i> Tech Stack
+              </div>
+              <i className="fa-solid fa-chevron-right chevron"></i>
             </a>
-            <a href="https://wa.me/94719845166" target="_blank" rel="noreferrer" className="menu-item">
-              <div className="menu-item-left"><i className="fa-brands fa-whatsapp"></i> WhatsApp</div>
+            <a href="#projects" className="menu-item" onClick={() => setMenuOpen(false)}>
+              <div className="menu-item-left">
+                <i className="fa-solid fa-folder-open"></i> Projects
+              </div>
+              <i className="fa-solid fa-chevron-right chevron"></i>
+            </a>
+            <a
+              href="https://wa.me/94719845166"
+              target="_blank"
+              rel="noreferrer"
+              className="menu-item"
+            >
+              <div className="menu-item-left">
+                <i className="fa-brands fa-whatsapp"></i> Contact WhatsApp
+              </div>
+              <i className="fa-solid fa-chevron-right chevron"></i>
             </a>
           </div>
         </>
       )}
 
+      {/* Hero / Home Section */}
       <main className="hero-section" id="home">
         <div className="logo-frame">
           <div className="ring-glow"></div>
           <div className="ring-spin"></div>
           <div className="circular-logo">
-            <img src="https://picsum.photos/400" alt="Heshan OFC Logo" />
+            {/* User Custom Logo Image */}
+            <img src="https://files.catbox.moe/0fmhj2.jpeg" alt="Heshan OFC Logo" />
           </div>
         </div>
 
-        <h1 className="hero-title">Hi, I'm <span>Heshan</span></h1>
+        <h1 className="hero-title">
+          Hi, I'm <span>Heshan</span>
+        </h1>
         <p className="hero-tagline">AI CREATOR & DEVELOPER</p>
         <p className="hero-desc">
-          Professional Web Developer, AI Creator & Creative Designer from Sri Lanka.
+          Professional Web Developer, Next.js Architect & AI Creator crafting modern, high-impact digital experiences.
         </p>
 
+        {/* Info Cards */}
         <div className="info-list">
           <div className="info-card">
             <i className="fa-solid fa-user info-icon"></i>
@@ -155,6 +178,7 @@ export default function Home() {
               <span className="info-value">Dinidu Heshan</span>
             </div>
           </div>
+
           <div className="info-card">
             <i className="fa-solid fa-location-dot info-icon"></i>
             <div className="info-meta">
@@ -162,94 +186,178 @@ export default function Home() {
               <span className="info-value">Sri Lanka 🇱🇰</span>
             </div>
           </div>
+
+          <div className="info-card">
+            <i className="fa-solid fa-shield-halved info-icon"></i>
+            <div className="info-meta">
+              <span className="info-label">Status</span>
+              <span className="info-value">Open for Projects</span>
+            </div>
+          </div>
         </div>
 
-        {/* COMMENTS SECTION */}
-        <section id="comments" style={{ width: "100%", maxWidth: "480px", marginTop: "2rem", textAlign: "left" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-            <h2 style={{ fontSize: "1.2rem", color: "#fff" }}>
-              <i className="fa-solid fa-comments" style={{ color: "var(--primary-red)", marginRight: "8px" }}></i>
-              Comments
-            </h2>
-            {user ? (
-              <button onClick={handleLogout} style={{ background: "#20070b", color: "var(--primary-red)", border: "1px solid var(--primary-red)", padding: "4px 10px", borderRadius: "8px", fontSize: "0.75rem", cursor: "pointer" }}>
-                Logout ({user.email.split("@")[0]})
-              </button>
-            ) : (
-              <button onClick={handleGoogleLogin} style={{ background: "#15151c", color: "#fff", border: "1px solid rgba(255,255,255,0.1)", padding: "4px 10px", borderRadius: "8px", fontSize: "0.75rem", cursor: "pointer" }}>
-                <i className="fa-brands fa-google" style={{ color: "#ea4335", marginRight: "5px" }}></i> Owner Login
-              </button>
-            )}
+        {/* Skills Section */}
+        <div className="skills-container" id="skills">
+          <div className="section-label">Skills & Tech</div>
+          <div className="skills-grid">
+            <div className="skill-badge">
+              <i className="fa-brands fa-react"></i>
+              <span>Next.js</span>
+            </div>
+            <div className="skill-badge">
+              <i className="fa-solid fa-database"></i>
+              <span>Supabase</span>
+            </div>
+            <div className="skill-badge">
+              <i className="fa-solid fa-robot"></i>
+              <span>AI Tools</span>
+            </div>
+            <div className="skill-badge">
+              <i className="fa-brands fa-js"></i>
+              <span>JavaScript</span>
+            </div>
           </div>
+        </div>
 
-          <form onSubmit={handleAddComment} style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "1.5rem" }}>
-            {replyTo && (
-              <div style={{ fontSize: "0.75rem", color: "var(--primary-red)", display: "flex", justifyContent: "space-between" }}>
-                <span>Replying to comment #{replyTo}</span>
-                <span onClick={() => setReplyTo(null)} style={{ cursor: "pointer", textDecoration: "underline" }}>Cancel</span>
-              </div>
-            )}
-            {!isOwner && (
-              <input
-                type="text"
-                placeholder="Your Name (optional)"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                style={{ background: "#121217", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", padding: "10px", borderRadius: "8px" }}
-              />
-            )}
-            <textarea
-              placeholder={isOwner ? "Write official reply as Owner..." : "Leave a message..."}
-              value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
-              rows="3"
-              style={{ background: "#121217", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", padding: "10px", borderRadius: "8px", resize: "none" }}
-            />
-            <button
-              type="submit"
-              disabled={submitting}
-              style={{ background: "var(--primary-red)", color: "#fff", border: "none", padding: "10px", borderRadius: "8px", fontWeight: "600", cursor: "pointer" }}
-            >
-              {submitting ? "Sending..." : replyTo ? "Send Reply" : "Post Comment"}
-            </button>
-          </form>
+        {/* Featured Projects */}
+        <div className="projects-container" id="projects">
+          <div className="section-label">Featured Works</div>
+          <div className="project-card">
+            <div className="project-top">
+              <span className="project-title">HESHAN-OFC Portfolio</span>
+              <span className="project-tag">Live</span>
+            </div>
+            <p className="project-desc">Modern portfolio with realtime guestbook powered by Supabase & Next.js.</p>
+          </div>
+          <div className="project-card">
+            <div className="project-top">
+              <span className="project-title">HESHAN AI Engine</span>
+              <span className="project-tag">AI App</span>
+            </div>
+            <p className="project-desc">Intelligent custom web applications and interactive multimedia tools.</p>
+          </div>
+        </div>
 
-          {/* Comment List */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            {parentComments.length === 0 && (
-              <p style={{ fontSize: "0.85rem", color: "#8b8b99" }}>No comments yet. Be the first to leave one!</p>
-            )}
-            {parentComments.map((c) => (
-              <div key={c.id} style={{ background: "#121217", border: "1px solid rgba(255,255,255,0.06)", padding: "12px", borderRadius: "10px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-                  <span style={{ fontWeight: "600", fontSize: "0.9rem", color: c.is_owner ? "var(--primary-red)" : "#fff" }}>
-                    {c.author} {c.is_owner && <span style={{ fontSize: "0.65rem", background: "var(--primary-red)", color: "#fff", padding: "2px 6px", borderRadius: "4px", marginLeft: "4px" }}>OWNER</span>}
-                  </span>
-                  <span style={{ fontSize: "0.7rem", color: "#666" }}>{new Date(c.created_at).toLocaleDateString()}</span>
-                </div>
-                <p style={{ fontSize: "0.85rem", color: "#ccc", margin: "4px 0" }}>{c.text}</p>
-                {isOwner && (
-                  <button onClick={() => setReplyTo(c.id)} style={{ background: "transparent", border: "none", color: "var(--primary-red)", fontSize: "0.75rem", cursor: "pointer", padding: 0 }}>
-                    Reply
-                  </button>
-                )}
+        {/* Action Buttons */}
+        <div className="action-buttons">
+          <button onClick={() => setModalOpen(true)} className="btn-action btn-projects">
+            <i className="fa-solid fa-comments"></i> Open Community Guestbook
+          </button>
+          <a
+            href="https://wa.me/94719845166?text=Hi%20Heshan,%20I%20saw%20your%20portfolio!"
+            target="_blank"
+            rel="noreferrer"
+            className="btn-action btn-contact"
+          >
+            <i className="fa-brands fa-whatsapp"></i> Contact (071 984 5166)
+          </a>
+        </div>
+      </main>
 
-                {/* Nested Replies */}
-                {getReplies(c.id).map((r) => (
-                  <div key={r.id} style={{ marginLeft: "1rem", marginTop: "8px", borderLeft: "2px solid var(--primary-red)", paddingLeft: "8px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <span style={{ fontWeight: "600", fontSize: "0.85rem", color: r.is_owner ? "var(--primary-red)" : "#fff" }}>
-                        {r.author} {r.is_owner && <span style={{ fontSize: "0.6rem", background: "var(--primary-red)", color: "#fff", padding: "1px 4px", borderRadius: "4px" }}>OWNER</span>}
+      {/* Floating Comment Button */}
+      <button
+        className="comment-floating-btn"
+        onClick={() => setModalOpen(true)}
+        title="Leave a comment"
+      >
+        <i className="fa-solid fa-comment-dots"></i>
+      </button>
+
+      {/* Comment Modal Drawer */}
+      {modalOpen && (
+        <div className="comment-modal-overlay" onClick={() => setModalOpen(false)}>
+          <div className="comment-box" onClick={(e) => e.stopPropagation()}>
+            <div className="comment-header">
+              <h3>
+                Community <span>Comments</span> ({comments.length})
+              </h3>
+              <button className="close-modal-btn" onClick={() => setModalOpen(false)}>
+                &times;
+              </button>
+            </div>
+
+            {/* Comment List */}
+            <div className="comment-list">
+              {parentComments.length === 0 ? (
+                <p style={{ color: "#777", textAlign: "center", padding: "1.5rem 0", fontSize: "0.85rem" }}>
+                  No comments yet. Be the first to leave one!
+                </p>
+              ) : (
+                parentComments.map((item) => (
+                  <div key={item.id} className="comment-card">
+                    <div className="comment-top">
+                      <span className="comment-user">
+                        {item.author}
+                        {item.is_owner && <span className="reply-badge">OWNER</span>}
+                      </span>
+                      <span className="comment-time">
+                        {new Date(item.created_at).toLocaleDateString()}
                       </span>
                     </div>
-                    <p style={{ fontSize: "0.8rem", color: "#bbb" }}>{r.text}</p>
+                    <div className="comment-body">{item.text}</div>
+                    <div className="comment-actions">
+                      <button
+                        className="action-reply-btn"
+                        onClick={() => startReply(item.id, item.author)}
+                      >
+                        <i className="fa-solid fa-reply"></i> Reply
+                      </button>
+                    </div>
+
+                    {/* Replies */}
+                    {getReplies(item.id).length > 0 && (
+                      <div className="reply-list">
+                        {getReplies(item.id).map((rep) => (
+                          <div key={rep.id} className="reply-card">
+                            <strong style={{ color: "#ff3355" }}>{rep.author}</strong>
+                            {rep.is_owner && <span className="reply-badge">OWNER</span>}
+                            <div style={{ marginTop: "2px", color: "#e0e0e0" }}>{rep.text}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
-            ))}
+                ))
+              )}
+            </div>
+
+            {/* Comment Form */}
+            <form className="comment-form" onSubmit={handleCommentSubmit}>
+              {activeReplyId && (
+                <div className="replying-indicator">
+                  <span>Replying to {replyTargetUser}...</span>
+                  <i
+                    className="fa-solid fa-xmark"
+                    onClick={() => {
+                      setActiveReplyId(null);
+                      setReplyTargetUser("");
+                    }}
+                    style={{ cursor: "pointer" }}
+                  ></i>
+                </div>
+              )}
+              <input
+                type="text"
+                className="comment-input"
+                placeholder="Your Name"
+                value={authorInput}
+                onChange={(e) => setAuthorInput(e.target.value)}
+                required
+              />
+              <textarea
+                className="comment-textarea"
+                placeholder="Write a comment..."
+                value={messageInput}
+                onChange={(e) => setMessageInput(e.target.value)}
+                required
+              />
+              <button type="submit" disabled={submitting} className="comment-submit-btn">
+                {submitting ? "Sending..." : "Send Comment"}
+              </button>
+            </form>
           </div>
-        </section>
-      </main>
+        </div>
+      )}
     </>
   );
 }
